@@ -1,11 +1,20 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDiary } from "@/contexts/DiaryContext";
 import { useInsight } from "@/contexts/InsightContext";
-import { AreaChart, BarChart } from "recharts";
+import { 
+  AreaChart, 
+  Area, 
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart, 
+  Bar 
+} from "recharts";
 import { BarChart2, TrendingUp, Sparkles, Brain } from "lucide-react";
 
 const Insights = () => {
@@ -179,27 +188,29 @@ const Insights = () => {
                 <CardContent>
                   {emotionTrendData.length > 0 ? (
                     <div className="h-[300px] w-full">
-                      <AreaChart
-                        data={emotionTrendData}
-                        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                      >
-                        <defs>
-                          <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <tooltip />
-                        <Area
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#8884d8"
-                          fillOpacity={1}
-                          fill="url(#colorUv)"
-                        />
-                      </AreaChart>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={emotionTrendData}
+                          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                        >
+                          <defs>
+                            <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
+                              <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="date" />
+                          <YAxis />
+                          <Tooltip />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke="#8884d8"
+                            fillOpacity={1}
+                            fill="url(#colorUv)"
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </div>
                   ) : (
                     <p className="text-muted-foreground">Not enough data to display trends.</p>
