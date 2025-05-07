@@ -6,15 +6,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import TagInput from "@/components/TagInput";
 import { useDiary } from "@/contexts/DiaryContext";
 import { toast } from "@/components/ui/sonner";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Tag } from "lucide-react";
 
 const NewJournal = () => {
   const navigate = useNavigate();
   const { addEntry, loading } = useDiary();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +32,7 @@ const NewJournal = () => {
     }
     
     try {
-      const entry = await addEntry(title, content);
+      const entry = await addEntry(title, content, tags);
       navigate(`/journal/${entry.id}`);
     } catch (error) {
       console.error("Error saving journal entry:", error);
@@ -65,11 +67,24 @@ const NewJournal = () => {
               
               <Textarea
                 placeholder="What's on your mind today? How are you feeling?"
-                className="min-h-[300px] border-none focus-visible:ring-0 resize-none"
+                className="min-h-[300px] border-none focus-visible:ring-0 resize-none mb-4"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 disabled={loading}
               />
+              
+              <div className="pt-4 border-t">
+                <div className="flex items-center mb-2">
+                  <Tag size={16} className="mr-2 text-muted-foreground" />
+                  <span className="text-sm font-medium">Tags</span>
+                </div>
+                <TagInput 
+                  tags={tags} 
+                  onChange={setTags}
+                  placeholder="Add tags (e.g., work, family, goals...)"
+                  disabled={loading}
+                />
+              </div>
             </CardContent>
           </Card>
           

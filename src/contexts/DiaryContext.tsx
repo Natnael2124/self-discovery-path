@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { toast } from "@/components/ui/sonner";
@@ -10,6 +9,7 @@ export interface DiaryEntry {
   title: string;
   createdAt: string;
   userId: string;
+  tags?: string[];
   mood?: string;
   emotions?: string[];
   strength?: string;
@@ -23,9 +23,12 @@ export interface DiaryEntry {
 interface DiaryContextType {
   entries: DiaryEntry[];
   loading: boolean;
-  addEntry: (title: string, content: string) => Promise<DiaryEntry>;
+  addEntry: (title: string, content: string, tags?: string[]) => Promise<DiaryEntry>;
   getEntryById: (id: string) => DiaryEntry | undefined;
   analyzeEntry: (entryId: string) => Promise<void>;
+  deleteEntry: (entryId: string) => Promise<void>;
+  updateEntry: (entryId: string, title: string, content: string, tags?: string[]) => Promise<void>;
+  getAllTags: () => string[];
 }
 
 const DiaryContext = createContext<DiaryContextType | undefined>(undefined);
@@ -47,7 +50,7 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
 
-  const addEntry = async (title: string, content: string): Promise<DiaryEntry> => {
+  const addEntry = async (title: string, content: string, tags: string[] = []): Promise<DiaryEntry> => {
     if (!user) throw new Error("User must be logged in");
     
     setLoading(true);
@@ -58,6 +61,7 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
         id: `entry-${Date.now()}`,
         title,
         content,
+        tags,
         createdAt: new Date().toISOString(),
         userId: user.id,
       };
@@ -149,8 +153,92 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Delete entry functionality
+  const deleteEntry = async (entryId: string): Promise<void> => {
+    if (!user) throw new Error("User must be logged in");
+    
+    setLoading(true);
+    
+    try {
+      // Find the entry to delete
+      const entryExists = entries.some(e => e.id === entryId);
+      if (!entryExists) throw new Error("Entry not found");
+      
+      // Filter out the entry to delete
+      const updatedEntries = entries.filter(e => e.id !== entryId);
+      
+      // Update state and localStorage
+      setEntries(updatedEntries);
+      localStorage.setItem(`selfsight_entries_${user.id}`, JSON.stringify(updatedEntries));
+      
+      toast.success("Journal entry deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting entry:", error);
+      toast.error("Failed to delete entry. Please try again.");
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update entry functionality
+  const updateEntry = async (entryId: string, title: string, content: string, tags: string[] = []): Promise<void> => {
+    if (!user) throw new Error("User must be logged in");
+    
+    setLoading(true);
+    
+    try {
+      // Find the entry to update
+      const entryIndex = entries.findIndex(e => e.id === entryId);
+      if (entryIndex === -1) throw new Error("Entry not found");
+      
+      // Update the entry
+      const updatedEntries = [...entries];
+      updatedEntries[entryIndex] = {
+        ...updatedEntries[entryIndex],
+        title,
+        content,
+        tags,
+      };
+      
+      // Update state and localStorage
+      setEntries(updatedEntries);
+      localStorage.setItem(`selfsight_entries_${user.id}`, JSON.stringify(updatedEntries));
+      
+      toast.success("Journal entry updated successfully!");
+    } catch (error) {
+      console.error("Error updating entry:", error);
+      toast.error("Failed to update entry. Please try again.");
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Get all unique tags from entries
+  const getAllTags = (): string[] => {
+    const allTags = new Set<string>();
+    
+    entries.forEach(entry => {
+      if (entry.tags && Array.isArray(entry.tags)) {
+        entry.tags.forEach(tag => allTags.add(tag));
+      }
+    });
+    
+    return Array.from(allTags).sort();
+  };
+
   return (
-    <DiaryContext.Provider value={{ entries, loading, addEntry, getEntryById, analyzeEntry }}>
+    <DiaryContext.Provider value={{ 
+      entries, 
+      loading, 
+      addEntry, 
+      getEntryById, 
+      analyzeEntry,
+      deleteEntry,
+      updateEntry,
+      getAllTags
+    }}>
       {children}
     </DiaryContext.Provider>
   );
