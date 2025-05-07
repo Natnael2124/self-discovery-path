@@ -16,6 +16,8 @@ export interface DiaryEntry {
   weakness?: string;
   insight?: string;
   analysis?: any;
+  _fallback?: boolean;
+  _quotaExceeded?: boolean;
 }
 
 interface DiaryContextType {
@@ -102,6 +104,21 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw new Error(error.message);
       if (!data) throw new Error("No analysis data returned");
       
+      // Check if this is a fallback response due to API quota being exceeded
+      if (data._quotaExceeded) {
+        toast.warning("API quota exceeded. Using fallback analysis.", {
+          description: "The analysis provided is a generic response as the AI service is currently unavailable.",
+          duration: 5000
+        });
+      } else if (data._fallback) {
+        toast.warning("Using fallback analysis.", {
+          description: "The AI service encountered an issue. A generic analysis has been provided.",
+          duration: 5000
+        });
+      } else {
+        toast.success("Entry analyzed successfully!");
+      }
+      
       // Update the entry with AI analysis
       const updatedEntries = entries.map(e => {
         if (e.id === entryId) {
@@ -112,7 +129,9 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
             strength: data.strength,
             weakness: data.weakness,
             insight: data.insight,
-            analysis: data
+            analysis: data,
+            _fallback: data._fallback,
+            _quotaExceeded: data._quotaExceeded
           };
         }
         return e;
@@ -121,11 +140,10 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       // Update state and localStorage
       setEntries(updatedEntries);
       localStorage.setItem(`selfsight_entries_${user.id}`, JSON.stringify(updatedEntries));
-      
-      toast.success("Entry analyzed successfully!");
     } catch (error) {
       console.error("Error analyzing entry:", error);
       toast.error("Failed to analyze entry. Please try again.");
+      throw error;
     } finally {
       setLoading(false);
     }

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useDiary } from "@/contexts/DiaryContext";
-import { ArrowLeft, Brain, Lightbulb } from "lucide-react";
+import { ArrowLeft, Brain, Lightbulb, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const JournalDetail = () => {
   const { entryId } = useParams<{ entryId: string }>();
@@ -32,8 +33,12 @@ const JournalDetail = () => {
 
   const handleAnalyze = async () => {
     if (entryId) {
-      await analyzeEntry(entryId);
-      setEntry(getEntryById(entryId));
+      try {
+        await analyzeEntry(entryId);
+        setEntry(getEntryById(entryId));
+      } catch (error) {
+        console.error("Error in analyze handler:", error);
+      }
     }
   };
 
@@ -61,6 +66,17 @@ const JournalDetail = () => {
         {entry.mood ? (
           <Card>
             <CardContent className="py-6">
+              {entry._fallback && (
+                <Alert variant="warning" className="mb-4">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    {entry._quotaExceeded 
+                      ? "API quota exceeded. This is a fallback analysis." 
+                      : "AI analysis failed. This is a fallback analysis."}
+                  </AlertDescription>
+                </Alert>
+              )}
+            
               <div className="flex items-center mb-4">
                 <Brain className="text-primary mr-2" size={20} />
                 <h2 className="text-xl font-bold">AI Analysis</h2>
