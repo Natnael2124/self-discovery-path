@@ -1,8 +1,8 @@
-
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { useDiary, DiaryEntry } from "./DiaryContext";
 import { toast } from "@/components/ui/sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Recommendation {
   id: string;
@@ -50,44 +50,27 @@ export const InsightProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Get analyzed entries to send to the API
+      const analyzedEntries = entries.filter(entry => entry.mood);
       
-      // Mock recommendations based on entries analysis
-      const mockRecommendations: Recommendation[] = [
-        {
-          id: `rec-${Date.now()}-1`,
-          type: "youtube",
-          title: "The Power of Vulnerability | Brené Brown",
-          description: "Brené Brown studies human connection -- our ability to empathize, belong, love.",
-          url: "https://www.youtube.com/watch?v=iCvmsMzlF7o"
-        },
-        {
-          id: `rec-${Date.now()}-2`,
-          type: "book",
-          title: "Atomic Habits",
-          author: "James Clear",
-          description: "Tiny changes, remarkable results: an easy & proven way to build good habits & break bad ones."
-        },
-        {
-          id: `rec-${Date.now()}-3`,
-          type: "article",
-          title: "The Science of Journaling: Why It Makes You Happier",
-          description: "Research-backed evidence on how journaling improves mental wellbeing.",
-          url: "https://example.com/journaling-science"
-        },
-        {
-          id: `rec-${Date.now()}-4`,
-          type: "podcast",
-          title: "The Daily Stoic",
-          author: "Ryan Holiday",
-          description: "Practical wisdom for everyday life based on Stoic philosophy.",
-          url: "https://dailystoic.com/podcast/"
+      if (analyzedEntries.length === 0) {
+        throw new Error("No analyzed entries available for recommendations");
+      }
+      
+      // Call the Supabase Edge Function for AI-generated recommendations
+      const { data, error } = await supabase.functions.invoke('generate-recommendations', {
+        body: {
+          entries: analyzedEntries
         }
-      ];
+      });
       
-      setRecommendations([...recommendations, ...mockRecommendations]);
-      localStorage.setItem(`selfsight_recommendations_${user.id}`, JSON.stringify([...recommendations, ...mockRecommendations]));
+      if (error) throw new Error(error.message);
+      if (!data || !Array.isArray(data)) throw new Error("Invalid recommendations data returned");
+      
+      // Update recommendations
+      const newRecommendations = data as Recommendation[];
+      setRecommendations([...recommendations, ...newRecommendations]);
+      localStorage.setItem(`selfsight_recommendations_${user.id}`, JSON.stringify([...recommendations, ...newRecommendations]));
       
       toast.success("New recommendations generated!");
     } catch (error) {

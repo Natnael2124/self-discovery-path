@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { toast } from "@/components/ui/sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface DiaryEntry {
   id: string;
@@ -90,33 +91,28 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       const entry = entries.find(e => e.id === entryId);
       if (!entry) throw new Error("Entry not found");
       
-      // Simulate API call to AI service
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock AI analysis
-      const mockAnalysis = {
-        mood: ["contemplative", "hopeful", "reflective"][Math.floor(Math.random() * 3)],
-        emotions: ["curiosity", "anticipation", "determination"],
-        strength: ["resilience", "adaptability", "self-awareness"][Math.floor(Math.random() * 3)],
-        weakness: ["overthinking", "perfectionism", "procrastination"][Math.floor(Math.random() * 3)],
-        insight: "You seem to be developing greater self-awareness and are making progress in identifying what truly matters to you.",
-        patterns: {
-          positive: ["consistent journaling", "reflection"],
-          areas_for_growth: ["decision making confidence"]
+      // Call the Supabase Edge Function for AI analysis
+      const { data, error } = await supabase.functions.invoke('analyze-journal', {
+        body: {
+          title: entry.title,
+          content: entry.content
         }
-      };
+      });
       
-      // Update the entry with analysis
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("No analysis data returned");
+      
+      // Update the entry with AI analysis
       const updatedEntries = entries.map(e => {
         if (e.id === entryId) {
           return {
             ...e,
-            mood: mockAnalysis.mood,
-            emotions: mockAnalysis.emotions,
-            strength: mockAnalysis.strength,
-            weakness: mockAnalysis.weakness,
-            insight: mockAnalysis.insight,
-            analysis: mockAnalysis
+            mood: data.mood,
+            emotions: data.emotions,
+            strength: data.strength,
+            weakness: data.weakness,
+            insight: data.insight,
+            analysis: data
           };
         }
         return e;
