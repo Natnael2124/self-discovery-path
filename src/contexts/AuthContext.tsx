@@ -15,10 +15,11 @@ export interface User {
 // Define context type
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUserProfile: (profile: any) => Promise<void>;
 }
 
@@ -128,12 +129,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Logout function using Supabase
   const logout = async () => {
     try {
+      setLoading(true);
       await supabase.auth.signOut();
       setUser(null);
+      setSession(null);
       toast.success("Logged out successfully!");
     } catch (error: any) {
       toast.error(`Logout failed: ${error.message}`);
       console.error("Logout error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -142,7 +147,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       
-      if (!user) throw new Error("User not authenticated");
+      if (!session) {
+        throw new Error("Auth session missing");
+      }
       
       // Update user metadata in Supabase
       const { error } = await supabase.auth.updateUser({
@@ -152,11 +159,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
       
       // Update local user state
-      setUser({
-        ...user,
-        ...profile,
-        isNewUser: false,
-      });
+      if (user) {
+        setUser({
+          ...user,
+          isNewUser: false,
+        });
+      }
       
       toast.success("Profile updated successfully!");
     } catch (error: any) {
@@ -169,7 +177,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, updateUserProfile }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      session,
+      loading, 
+      login, 
+      signup, 
+      logout, 
+      updateUserProfile 
+    }}>
       {children}
     </AuthContext.Provider>
   );

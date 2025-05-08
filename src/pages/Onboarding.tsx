@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import MainLayout from "@/components/layout/MainLayout";
+import { toast } from "@/components/ui/sonner";
 
 const Onboarding = () => {
-  const { user, updateUserProfile, loading } = useAuth();
+  const { user, updateUserProfile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({
     personality: "",
     values: "",
@@ -19,14 +21,32 @@ const Onboarding = () => {
     goals: "",
   });
 
+  // Check if user is authenticated and redirect if needed
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [user, authLoading, navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
+      setLoading(true);
       await updateUserProfile(profile);
-      navigate("/");
-    } catch (error) {
+      
+      // Also save profile to localStorage as a backup
+      if (user?.id) {
+        localStorage.setItem(`selfsight_profile_${user.id}`, JSON.stringify(profile));
+      }
+      
+      toast.success("Profile updated successfully!");
+      navigate("/journal");
+    } catch (error: any) {
       console.error("Error updating profile:", error);
+      toast.error(`Failed to update profile: ${error.message || "Unknown error"}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,11 +54,22 @@ const Onboarding = () => {
     setProfile({ ...profile, [field]: value });
   };
 
+  // If still checking auth status, show loading state
+  if (authLoading) {
+    return (
+      <MainLayout requireAuth={false}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p>Loading...</p>
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
-    <MainLayout requireAuth={true}>
+    <MainLayout requireAuth={false}>
       <div className="max-w-3xl mx-auto pb-12 animate-fade-in">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome to SelfSight, {user?.name}!</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome to SelfSight{user?.name ? `, ${user.name}` : ''}!</h1>
           <p className="text-muted-foreground">Let's get to know you better</p>
         </div>
 
@@ -107,7 +138,7 @@ const Onboarding = () => {
 
                   <div className="flex justify-between">
                     <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                    <Button type="submit" disabled={loading}>
+                    <Button type="submit" disabled={loading || authLoading}>
                       {loading ? "Saving..." : "Complete Profile"}
                     </Button>
                   </div>
