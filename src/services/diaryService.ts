@@ -2,7 +2,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { DiaryEntry } from "@/types/diary";
 import { toast } from "@/components/ui/sonner";
-import { v4 as uuidv4 } from 'uuid';
 
 // Transform Supabase data to match our DiaryEntry interface
 export const transformEntryFromSupabase = (entry: any): DiaryEntry => ({
@@ -17,7 +16,9 @@ export const transformEntryFromSupabase = (entry: any): DiaryEntry => ({
   strength: entry.strength || undefined,
   weakness: entry.weakness || undefined,
   insight: entry.insight || undefined,
-  analysis: entry.analysis || undefined
+  analysis: entry.analysis || undefined,
+  _fallback: entry._fallback || false,
+  _quotaExceeded: entry._quotaExceeded || false
 });
 
 // Fetch all entries for a user
@@ -70,6 +71,7 @@ export const createFallbackEntry = (
   tags,
   createdAt: new Date().toISOString(),
   userId,
+  _fallback: true
 });
 
 // Delete an entry
@@ -107,17 +109,31 @@ export const analyzeEntryWithAI = async (
   title: string, 
   content: string
 ): Promise<any> => {
-  const { data, error } = await supabase.functions.invoke('analyze-journal', {
-    body: {
-      title,
-      content
-    }
-  });
-  
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("No analysis data returned");
-  
-  return data;
+  try {
+    const { data, error } = await supabase.functions.invoke('analyze-journal', {
+      body: {
+        title,
+        content
+      }
+    });
+    
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error("No analysis data returned");
+    
+    return data;
+  } catch (error) {
+    console.error("Error analyzing entry:", error);
+    // Return fallback analysis with _fallback flag
+    return {
+      mood: "contemplative",
+      emotions: ["thoughtful", "reflective"],
+      strength: "self-awareness",
+      weakness: "uncertainty",
+      insight: "Taking time to reflect shows a commitment to personal growth.",
+      _fallback: true,
+      _quotaExceeded: error.message?.includes("quota exceeded")
+    };
+  }
 };
 
 // Update entry with analysis results
@@ -133,7 +149,9 @@ export const updateEntryWithAnalysis = async (
       strength: analysisData.strength,
       weakness: analysisData.weakness,
       insight: analysisData.insight,
-      analysis: analysisData
+      analysis: analysisData,
+      _fallback: analysisData._fallback || false,
+      _quotaExceeded: analysisData._quotaExceeded || false
     })
     .eq('id', entryId);
 
