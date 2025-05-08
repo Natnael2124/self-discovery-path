@@ -2,36 +2,9 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { toast } from "@/components/ui/sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from 'uuid';
-
-export interface DiaryEntry {
-  id: string;
-  content: string;
-  title: string;
-  createdAt: string;
-  userId: string;
-  tags?: string[];
-  mood?: string;
-  emotions?: string[];
-  strength?: string;
-  weakness?: string;
-  insight?: string;
-  analysis?: any;
-  _fallback?: boolean;
-  _quotaExceeded?: boolean;
-}
-
-interface DiaryContextType {
-  entries: DiaryEntry[];
-  loading: boolean;
-  addEntry: (title: string, content: string, tags?: string[]) => Promise<DiaryEntry>;
-  getEntryById: (id: string) => DiaryEntry | undefined;
-  analyzeEntry: (entryId: string) => Promise<void>;
-  deleteEntry: (entryId: string) => Promise<void>;
-  updateEntry: (entryId: string, title: string, content: string, tags?: string[]) => Promise<void>;
-  getAllTags: () => string[];
-}
+import { DiaryEntry, DiaryContextType } from "@/types/diary";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+import * as DiaryService from "@/services/diaryService";
 
 const DiaryContext = createContext<DiaryContextType | undefined>(undefined);
 
@@ -39,6 +12,7 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [localEntries, setLocalEntries] = useLocalStorage<DiaryEntry[]>(`selfsight_entries_${user?.id || 'guest'}`, []);
 
   // Load entries from Supabase when user changes
   useEffect(() => {
@@ -51,43 +25,15 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       try {
         // Fetch entries from Supabase
-        const { data, error } = await supabase
-          .from('journal_entries')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          throw error;
-        }
-
-        // Transform data to match our DiaryEntry interface
-        const transformedEntries: DiaryEntry[] = data.map(entry => ({
-          id: entry.id,
-          title: entry.title,
-          content: entry.content,
-          createdAt: entry.created_at,
-          userId: entry.user_id,
-          tags: entry.tags || [],
-          mood: entry.mood || undefined,
-          emotions: entry.emotions || undefined,
-          strength: entry.strength || undefined,
-          weakness: entry.weakness || undefined,
-          insight: entry.insight || undefined,
-          analysis: entry.analysis || undefined,
-          _fallback: entry.analysis?._fallback || false,
-          _quotaExceeded: entry.analysis?._quotaExceeded || false
-        }));
-
-        setEntries(transformedEntries);
+        const fetchedEntries = await DiaryService.fetchEntries(user.id);
+        setEntries(fetchedEntries);
       } catch (error) {
         console.error("Error fetching entries:", error);
         toast.error("Failed to load journal entries");
         
         // Fallback to localStorage if Supabase fetch fails
-        const storedEntries = localStorage.getItem(`selfsight_entries_${user.id}`);
-        if (storedEntries) {
-          setEntries(JSON.parse(storedEntries));
+        if (localEntries.length > 0) {
+          setEntries(localEntries);
           toast.warning("Using locally stored entries. Some features may be limited.");
         }
       } finally {
@@ -96,7 +42,7 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     };
 
     fetchEntries();
-  }, [user]);
+  }, [user, localEntries]);
 
   const addEntry = async (title: string, content: string, tags: string[] = []): Promise<DiaryEntry> => {
     if (!user) throw new Error("User must be logged in");
@@ -104,32 +50,8 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // Generate a temporary ID for the entry
-      const tempId = uuidv4();
-      
       // Create entry in Supabase
-      const { data, error } = await supabase
-        .from('journal_entries')
-        .insert({
-          title,
-          content,
-          tags,
-          user_id: user.id
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Transform the returned data
-      const newEntry: DiaryEntry = {
-        id: data.id,
-        title: data.title,
-        content: data.content,
-        createdAt: data.created_at,
-        userId: data.user_id,
-        tags: data.tags || [],
-      };
+      const newEntry = await DiaryService.addEntryToSupabase(user.id, title, content, tags);
       
       // Update state
       const updatedEntries = [newEntry, ...entries];
@@ -142,18 +64,11 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       toast.error("Failed to save entry. Please try again.");
       
       // Fallback to localStorage if Supabase insert fails
-      const fallbackEntry: DiaryEntry = {
-        id: `entry-${Date.now()}`,
-        title,
-        content,
-        tags,
-        createdAt: new Date().toISOString(),
-        userId: user.id,
-      };
+      const fallbackEntry = DiaryService.createFallbackEntry(user.id, title, content, tags);
       
       const updatedEntries = [fallbackEntry, ...entries];
       setEntries(updatedEntries);
-      localStorage.setItem(`selfsight_entries_${user.id}`, JSON.stringify(updatedEntries));
+      setLocalEntries(updatedEntries);
       
       toast.warning("Entry saved locally. Some features may be limited.");
       return fallbackEntry;
@@ -176,23 +91,18 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       if (!entry) throw new Error("Entry not found");
       
       // Call the Supabase Edge Function for AI analysis
-      const { data, error } = await supabase.functions.invoke('analyze-journal', {
-        body: {
-          title: entry.title,
-          content: entry.content
-        }
-      });
-      
-      if (error) throw new Error(error.message);
-      if (!data) throw new Error("No analysis data returned");
+      const analysisData = await DiaryService.analyzeEntryWithAI(entryId, entry.title, entry.content);
       
       // Check if this is a fallback response due to API quota being exceeded
-      if (data._quotaExceeded) {
+      const isFallbackResponse = analysisData._fallback === true;
+      const isQuotaExceeded = analysisData._quotaExceeded === true;
+      
+      if (isQuotaExceeded) {
         toast.warning("API quota exceeded. Using fallback analysis.", {
           description: "The analysis provided is a generic response as the AI service is currently unavailable.",
           duration: 5000
         });
-      } else if (data._fallback) {
+      } else if (isFallbackResponse) {
         toast.warning("Using fallback analysis.", {
           description: "The AI service encountered an issue. A generic analysis has been provided.",
           duration: 5000
@@ -202,33 +112,19 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Update the entry with AI analysis in Supabase
-      const { error: updateError } = await supabase
-        .from('journal_entries')
-        .update({
-          mood: data.mood,
-          emotions: data.emotions,
-          strength: data.strength,
-          weakness: data.weakness,
-          insight: data.insight,
-          analysis: data
-        })
-        .eq('id', entryId);
-
-      if (updateError) throw updateError;
+      await DiaryService.updateEntryWithAnalysis(entryId, analysisData);
       
       // Update the entry in local state
       const updatedEntries = entries.map(e => {
         if (e.id === entryId) {
           return {
             ...e,
-            mood: data.mood,
-            emotions: data.emotions,
-            strength: data.strength,
-            weakness: data.weakness,
-            insight: data.insight,
-            analysis: data,
-            _fallback: data._fallback,
-            _quotaExceeded: data._quotaExceeded
+            mood: analysisData.mood,
+            emotions: analysisData.emotions,
+            strength: analysisData.strength,
+            weakness: analysisData.weakness,
+            insight: analysisData.insight,
+            analysis: analysisData,
           };
         }
         return e;
@@ -244,7 +140,6 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Delete entry functionality
   const deleteEntry = async (entryId: string): Promise<void> => {
     if (!user) throw new Error("User must be logged in");
     
@@ -252,16 +147,12 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       // Delete from Supabase
-      const { error } = await supabase
-        .from('journal_entries')
-        .delete()
-        .eq('id', entryId);
-
-      if (error) throw error;
+      await DiaryService.deleteEntryFromSupabase(entryId);
       
       // Update local state
       const updatedEntries = entries.filter(e => e.id !== entryId);
       setEntries(updatedEntries);
+      setLocalEntries(updatedEntries);
       
       toast.success("Journal entry deleted successfully!");
     } catch (error) {
@@ -273,7 +164,6 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Update entry functionality
   const updateEntry = async (entryId: string, title: string, content: string, tags: string[] = []): Promise<void> => {
     if (!user) throw new Error("User must be logged in");
     
@@ -281,16 +171,7 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       // Update in Supabase
-      const { error } = await supabase
-        .from('journal_entries')
-        .update({
-          title,
-          content,
-          tags
-        })
-        .eq('id', entryId);
-
-      if (error) throw error;
+      await DiaryService.updateEntryInSupabase(entryId, title, content, tags);
       
       // Update local state
       const updatedEntries = entries.map(e => {
@@ -306,6 +187,7 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       });
       
       setEntries(updatedEntries);
+      setLocalEntries(updatedEntries);
       
       toast.success("Journal entry updated successfully!");
     } catch (error) {
@@ -317,7 +199,6 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Get all unique tags from entries
   const getAllTags = (): string[] => {
     const allTags = new Set<string>();
     
@@ -345,6 +226,9 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     </DiaryContext.Provider>
   );
 };
+
+// Re-export the DiaryEntry type for convenience
+export type { DiaryEntry } from "@/types/diary";
 
 export const useDiary = () => {
   const context = useContext(DiaryContext);
