@@ -32,7 +32,7 @@ const mapSupabaseUser = (supabaseUser: SupabaseUser, isNew: boolean = false): Us
     id: supabaseUser.id,
     email: supabaseUser.email || "",
     name: supabaseUser.user_metadata?.name || supabaseUser.email?.split("@")[0] || "",
-    isNewUser: isNew,
+    isNewUser: isNew || supabaseUser.user_metadata?.isNewUser || false,
   };
 };
 
@@ -47,9 +47,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.id);
         setSession(session);
         if (session?.user) {
           const mappedUser = mapSupabaseUser(session.user);
+          console.log("Setting user from auth state change:", mappedUser);
           setUser(mappedUser);
         } else {
           setUser(null);
@@ -59,9 +61,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Then check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Got existing session:", session?.user?.id);
       setSession(session);
       if (session?.user) {
         const mappedUser = mapSupabaseUser(session.user);
+        console.log("Setting user from existing session:", mappedUser);
         setUser(mappedUser);
       }
       setLoading(false);
@@ -104,6 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         options: {
           data: {
             name,
+            isNewUser: true,
           },
         },
       });
@@ -145,32 +150,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Update user profile
   const updateUserProfile = async (profile: any) => {
     try {
-      setLoading(true);
-      
-      if (!session) {
-        throw new Error("Auth session missing");
+      if (!session?.user) {
+        console.error("No session or user found when updating profile");
+        toast.error("You must be logged in to update your profile");
+        return;
       }
       
+      setLoading(true);
+      
       // Update user metadata in Supabase
-      const { error } = await supabase.auth.updateUser({
+      const { data, error } = await supabase.auth.updateUser({
         data: { ...profile, isNewUser: false }
       });
 
       if (error) throw error;
       
-      // Update local user state
-      if (user) {
-        setUser({
-          ...user,
+      if (data.user) {
+        // Update local user state to reflect changes
+        const updatedUser: User = {
+          ...user!,
           isNewUser: false,
-        });
+          name: data.user.user_metadata?.name || user?.name || "",
+          // Include any other properties that might have been updated
+        };
+        
+        setUser(updatedUser);
+        
+        // Also save profile to localStorage as a backup
+        if (user?.id) {
+          localStorage.setItem(`selfsight_profile_${user.id}`, JSON.stringify(profile));
+        }
       }
       
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       toast.error(`Failed to update profile: ${error.message}`);
       console.error("Profile update error:", error);
-      throw error;
     } finally {
       setLoading(false);
     }

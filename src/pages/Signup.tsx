@@ -8,13 +8,19 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 const Signup = () => {
-  const { signup, loading } = useAuth();
+  const { signup, loading, user } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+
+  // If user is already logged in, redirect to home page
+  if (user) {
+    navigate("/");
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +43,10 @@ const Signup = () => {
 
     try {
       await signup(name, email, password);
-      navigate("/onboarding");
-    } catch (err) {
-      setError("Failed to create account. Please try again.");
+      // Do not navigate here - the auth state change will handle redirect
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setError(err.message || "Failed to create account. Please try again.");
     }
   };
 

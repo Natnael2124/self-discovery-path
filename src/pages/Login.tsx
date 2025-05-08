@@ -8,11 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 const Login = () => {
-  const { login, loading } = useAuth();
+  const { login, loading, user } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  // If user is already logged in, redirect to home page
+  if (user) {
+    navigate("/");
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +31,7 @@ const Login = () => {
 
     try {
       await login(email, password);
-      navigate("/");
+      // Don't navigate here - the auth listener will handle redirects
     } catch (err) {
       setError("Failed to login. Please check your credentials.");
     }

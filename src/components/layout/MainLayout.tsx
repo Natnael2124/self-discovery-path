@@ -1,9 +1,8 @@
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Sidebar from "./Sidebar";
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -17,13 +16,26 @@ const MainLayout = ({ children, requireAuth = true }: MainLayoutProps) => {
   useEffect(() => {
     // Only redirect if loading is complete and authentication is required but missing
     if (!loading && requireAuth && !user) {
+      console.log("MainLayout redirecting to login: no authenticated user");
       navigate("/login");
+      return;
     }
     
     // Redirect new users to onboarding if they're not already there
     if (!loading && user?.isNewUser && window.location.pathname !== "/onboarding") {
+      console.log("MainLayout redirecting to onboarding: new user detected");
       navigate("/onboarding");
+      return;
     }
+
+    // Debug logging
+    console.log("MainLayout auth state:", { 
+      loading, 
+      requireAuth, 
+      isAuthenticated: !!user, 
+      isNewUser: user?.isNewUser,
+      currentPath: window.location.pathname 
+    });
   }, [user, loading, navigate, requireAuth]);
 
   // Show loading state while checking auth

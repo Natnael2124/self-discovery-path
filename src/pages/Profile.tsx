@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/sonner";
 import { User } from "lucide-react";
 
 const Profile = () => {
-  const { user, updateUserProfile } = useAuth();
+  const { user, updateUserProfile, session } = useAuth();
   const [profile, setProfile] = useState({
     personality: "",
     values: "",
@@ -24,7 +24,11 @@ const Profile = () => {
     if (user) {
       const savedProfile = localStorage.getItem(`selfsight_profile_${user.id}`);
       if (savedProfile) {
-        setProfile(JSON.parse(savedProfile));
+        try {
+          setProfile(JSON.parse(savedProfile));
+        } catch (e) {
+          console.error("Error parsing profile from localStorage:", e);
+        }
       }
     }
   }, [user]);
@@ -34,11 +38,22 @@ const Profile = () => {
     setLoading(true);
     
     try {
+      if (!session) {
+        throw new Error("You must be logged in to update your profile");
+      }
+      
       await updateUserProfile(profile);
+      
+      // Save to localStorage as well
+      if (user?.id) {
+        localStorage.setItem(`selfsight_profile_${user.id}`, JSON.stringify(profile));
+      }
+      
       setIsEditing(false);
       toast.success("Profile updated successfully!");
-    } catch (error) {
-      toast.error("Failed to update profile");
+    } catch (error: any) {
+      toast.error(`Failed to update profile: ${error.message}`);
+      console.error("Profile update error:", error);
     } finally {
       setLoading(false);
     }

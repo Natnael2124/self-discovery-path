@@ -12,18 +12,30 @@ const Index = () => {
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    // If user is logged in and not a new user, redirect to dashboard
+    console.log("Index page - Auth state:", { user, loading, isNewUser: user?.isNewUser });
+    
+    // If user is logged in and not a new user, redirect to journal
     if (!loading && user && !user.isNewUser) {
+      console.log("Index redirecting to journal: authenticated user");
       navigate("/journal");
     }
     // If user is logged in and is a new user, redirect to onboarding
     else if (!loading && user && user.isNewUser) {
+      console.log("Index redirecting to onboarding: new user");
       navigate("/onboarding");
     }
   }, [user, loading, navigate]);
 
-  // If loading, return null
-  if (loading) return null;
+  // If loading, return loading indicator
+  if (loading) {
+    return (
+      <MainLayout requireAuth={false}>
+        <div className="min-h-[80vh] flex items-center justify-center">
+          <div className="animate-pulse text-primary font-semibold">Loading...</div>
+        </div>
+      </MainLayout>
+    );
+  }
   
   // If user is already logged in, return null (will be redirected by useEffect)
   if (user) return null;

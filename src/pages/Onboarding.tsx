@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import MainLayout from "@/components/layout/MainLayout";
 import { toast } from "@/components/ui/sonner";
@@ -26,6 +25,10 @@ const Onboarding = () => {
     if (!authLoading && !user) {
       navigate("/login");
     }
+    // If user is logged in but is not a new user, redirect to journal
+    if (!authLoading && user && !user.isNewUser) {
+      navigate("/journal");
+    }
   }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,12 +36,17 @@ const Onboarding = () => {
     
     try {
       setLoading(true);
+      
+      if (!user) {
+        toast.error("You need to be logged in to complete onboarding");
+        navigate("/login");
+        return;
+      }
+      
       await updateUserProfile(profile);
       
       // Also save profile to localStorage as a backup
-      if (user?.id) {
-        localStorage.setItem(`selfsight_profile_${user.id}`, JSON.stringify(profile));
-      }
+      localStorage.setItem(`selfsight_profile_${user.id}`, JSON.stringify(profile));
       
       toast.success("Profile updated successfully!");
       navigate("/journal");
