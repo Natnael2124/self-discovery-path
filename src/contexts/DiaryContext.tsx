@@ -1,7 +1,9 @@
+
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from 'uuid';
 
 export interface DiaryEntry {
   id: string;
@@ -38,16 +40,62 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load entries from localStorage when user changes
+  // Load entries from Supabase when user changes
   useEffect(() => {
-    if (user) {
-      const storedEntries = localStorage.getItem(`selfsight_entries_${user.id}`);
-      if (storedEntries) {
-        setEntries(JSON.parse(storedEntries));
+    const fetchEntries = async () => {
+      if (!user) {
+        setEntries([]);
+        return;
       }
-    } else {
-      setEntries([]);
-    }
+
+      setLoading(true);
+      try {
+        // Fetch entries from Supabase
+        const { data, error } = await supabase
+          .from('journal_entries')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          throw error;
+        }
+
+        // Transform data to match our DiaryEntry interface
+        const transformedEntries: DiaryEntry[] = data.map(entry => ({
+          id: entry.id,
+          title: entry.title,
+          content: entry.content,
+          createdAt: entry.created_at,
+          userId: entry.user_id,
+          tags: entry.tags || [],
+          mood: entry.mood || undefined,
+          emotions: entry.emotions || undefined,
+          strength: entry.strength || undefined,
+          weakness: entry.weakness || undefined,
+          insight: entry.insight || undefined,
+          analysis: entry.analysis || undefined,
+          _fallback: entry.analysis?._fallback || false,
+          _quotaExceeded: entry.analysis?._quotaExceeded || false
+        }));
+
+        setEntries(transformedEntries);
+      } catch (error) {
+        console.error("Error fetching entries:", error);
+        toast.error("Failed to load journal entries");
+        
+        // Fallback to localStorage if Supabase fetch fails
+        const storedEntries = localStorage.getItem(`selfsight_entries_${user.id}`);
+        if (storedEntries) {
+          setEntries(JSON.parse(storedEntries));
+          toast.warning("Using locally stored entries. Some features may be limited.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEntries();
   }, [user]);
 
   const addEntry = async (title: string, content: string, tags: string[] = []): Promise<DiaryEntry> => {
@@ -56,8 +104,45 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // Create a new diary entry
+      // Generate a temporary ID for the entry
+      const tempId = uuidv4();
+      
+      // Create entry in Supabase
+      const { data, error } = await supabase
+        .from('journal_entries')
+        .insert({
+          title,
+          content,
+          tags,
+          user_id: user.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Transform the returned data
       const newEntry: DiaryEntry = {
+        id: data.id,
+        title: data.title,
+        content: data.content,
+        createdAt: data.created_at,
+        userId: data.user_id,
+        tags: data.tags || [],
+      };
+      
+      // Update state
+      const updatedEntries = [newEntry, ...entries];
+      setEntries(updatedEntries);
+      
+      toast.success("Journal entry saved!");
+      return newEntry;
+    } catch (error) {
+      console.error("Error adding entry:", error);
+      toast.error("Failed to save entry. Please try again.");
+      
+      // Fallback to localStorage if Supabase insert fails
+      const fallbackEntry: DiaryEntry = {
         id: `entry-${Date.now()}`,
         title,
         content,
@@ -66,19 +151,12 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
         userId: user.id,
       };
       
-      // Update state
-      const updatedEntries = [...entries, newEntry];
+      const updatedEntries = [fallbackEntry, ...entries];
       setEntries(updatedEntries);
-      
-      // Save to localStorage
       localStorage.setItem(`selfsight_entries_${user.id}`, JSON.stringify(updatedEntries));
       
-      toast.success("Journal entry saved!");
-      return newEntry;
-    } catch (error) {
-      console.error("Error adding entry:", error);
-      toast.error("Failed to save entry. Please try again.");
-      throw error;
+      toast.warning("Entry saved locally. Some features may be limited.");
+      return fallbackEntry;
     } finally {
       setLoading(false);
     }
@@ -122,8 +200,23 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       } else {
         toast.success("Entry analyzed successfully!");
       }
+
+      // Update the entry with AI analysis in Supabase
+      const { error: updateError } = await supabase
+        .from('journal_entries')
+        .update({
+          mood: data.mood,
+          emotions: data.emotions,
+          strength: data.strength,
+          weakness: data.weakness,
+          insight: data.insight,
+          analysis: data
+        })
+        .eq('id', entryId);
+
+      if (updateError) throw updateError;
       
-      // Update the entry with AI analysis
+      // Update the entry in local state
       const updatedEntries = entries.map(e => {
         if (e.id === entryId) {
           return {
@@ -141,13 +234,11 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
         return e;
       });
       
-      // Update state and localStorage
+      // Update state
       setEntries(updatedEntries);
-      localStorage.setItem(`selfsight_entries_${user.id}`, JSON.stringify(updatedEntries));
     } catch (error) {
       console.error("Error analyzing entry:", error);
       toast.error("Failed to analyze entry. Please try again.");
-      throw error;
     } finally {
       setLoading(false);
     }
@@ -160,16 +251,17 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // Find the entry to delete
-      const entryExists = entries.some(e => e.id === entryId);
-      if (!entryExists) throw new Error("Entry not found");
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('journal_entries')
+        .delete()
+        .eq('id', entryId);
+
+      if (error) throw error;
       
-      // Filter out the entry to delete
+      // Update local state
       const updatedEntries = entries.filter(e => e.id !== entryId);
-      
-      // Update state and localStorage
       setEntries(updatedEntries);
-      localStorage.setItem(`selfsight_entries_${user.id}`, JSON.stringify(updatedEntries));
       
       toast.success("Journal entry deleted successfully!");
     } catch (error) {
@@ -188,22 +280,32 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // Find the entry to update
-      const entryIndex = entries.findIndex(e => e.id === entryId);
-      if (entryIndex === -1) throw new Error("Entry not found");
+      // Update in Supabase
+      const { error } = await supabase
+        .from('journal_entries')
+        .update({
+          title,
+          content,
+          tags
+        })
+        .eq('id', entryId);
+
+      if (error) throw error;
       
-      // Update the entry
-      const updatedEntries = [...entries];
-      updatedEntries[entryIndex] = {
-        ...updatedEntries[entryIndex],
-        title,
-        content,
-        tags,
-      };
+      // Update local state
+      const updatedEntries = entries.map(e => {
+        if (e.id === entryId) {
+          return {
+            ...e,
+            title,
+            content,
+            tags,
+          };
+        }
+        return e;
+      });
       
-      // Update state and localStorage
       setEntries(updatedEntries);
-      localStorage.setItem(`selfsight_entries_${user.id}`, JSON.stringify(updatedEntries));
       
       toast.success("Journal entry updated successfully!");
     } catch (error) {
