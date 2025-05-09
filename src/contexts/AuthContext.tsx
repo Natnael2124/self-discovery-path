@@ -2,39 +2,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { User as SupabaseUser, Session } from "@supabase/supabase-js";
-
-// Define user type
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  isNewUser: boolean;
-}
-
-// Define context type
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  updateUserProfile: (profile: any) => Promise<void>;
-}
+import { User, AuthContextType } from "@/types/auth";
+import { mapSupabaseUser } from "@/utils/authUtils";
+import { Session } from "@supabase/supabase-js";
 
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Helper function to transform Supabase user to our User interface
-const mapSupabaseUser = (supabaseUser: SupabaseUser, isNew: boolean = false): User => {
-  return {
-    id: supabaseUser.id,
-    email: supabaseUser.email || "",
-    name: supabaseUser.user_metadata?.name || supabaseUser.email?.split("@")[0] || "",
-    isNewUser: isNew || supabaseUser.user_metadata?.isNewUser || false,
-  };
-};
 
 // Provider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -134,10 +107,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         try {
           // Check if profile exists
-          const { data: existingProfiles } = await supabase
+          const { data: existingProfiles, error: profileQueryError } = await supabase
             .from("profiles")
             .select("*")
             .eq("id", data.user.id);
+            
+          if (profileQueryError) {
+            console.error("Error checking for existing profile:", profileQueryError);
+          }
             
           if (!existingProfiles || existingProfiles.length === 0) {
             // Create profile if it doesn't exist
