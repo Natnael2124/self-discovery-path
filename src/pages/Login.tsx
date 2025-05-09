@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,16 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  // If user is already logged in, redirect to home page
-  if (user) {
-    navigate("/");
-    return null;
-  }
+  // If user is already logged in, redirect to appropriate page
+  useEffect(() => {
+    if (user) {
+      if (user.isNewUser) {
+        navigate("/onboarding");
+      } else {
+        navigate("/journal");
+      }
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +45,11 @@ const Login = () => {
       setError(err.message || "Failed to login. Please check your credentials.");
     }
   };
+
+  // If already logged in, don't render the form
+  if (user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-4">

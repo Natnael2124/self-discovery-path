@@ -14,15 +14,20 @@ const MainLayout = ({ children, requireAuth = true }: MainLayoutProps) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Only redirect if loading is complete and authentication is required but missing
-    if (!loading && requireAuth && !user) {
+    // Only redirect if loading is complete
+    if (loading) {
+      return;
+    }
+
+    // If authentication is required but user is not logged in
+    if (requireAuth && !user) {
       console.log("MainLayout redirecting to login: no authenticated user");
       navigate("/login");
       return;
     }
     
     // Redirect new users to onboarding if they're not already there
-    if (!loading && user?.isNewUser && window.location.pathname !== "/onboarding") {
+    if (user?.isNewUser && window.location.pathname !== "/onboarding") {
       console.log("MainLayout redirecting to onboarding: new user detected");
       navigate("/onboarding");
       return;

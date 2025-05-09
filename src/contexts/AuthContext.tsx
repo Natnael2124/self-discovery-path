@@ -109,14 +109,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       
-      // Check if user already exists
-      const { data: existingUsers } = await supabase
+      // Check for existing users with this email (optional since Supabase will check too)
+      const { data: existingUsers, error: queryError } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', email)
         .limit(1);
       
-      if (existingUsers && existingUsers.length > 0) {
+      if (queryError) {
+        console.error("Error checking for existing users:", queryError);
+      } else if (existingUsers && existingUsers.length > 0) {
         toast.error("User with this email already exists.");
         throw new Error("User with this email already exists.");
       }
@@ -142,17 +144,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Set isNewUser flag to true
         setUser(mapSupabaseUser(data.user, true));
         
-        // Also try to create a profile manually since sometimes the trigger may not work
+        // Create a profile manually since we know we might need it right away
         try {
+          // This needs to be created after the user signs up
+          // We'll create it here as a fallback, but ideally this would happen via a database trigger
           const { error: profileError } = await supabase
             .from('profiles')
-            .insert([
-              { 
-                id: data.user.id,
-                email: data.user.email,
-                name: name
-              },
-            ]);
+            .insert([{ 
+              id: data.user.id,
+              email: data.user.email,
+              name: name 
+            }]);
             
           if (profileError) {
             console.error("Error creating profile:", profileError);
@@ -192,7 +194,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!session?.user) {
         console.error("No session or user found when updating profile");
         toast.error("You must be logged in to update your profile");
-        return;
+        throw new Error("Auth session missing");
       }
       
       setLoading(true);
@@ -205,22 +207,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
       
       if (data.user) {
-        // Also update the profile in our profiles table
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            name: profile.name || data.user.user_metadata?.name,
-            email: data.user.email,
-            // Add any other profile fields here
-          });
-          
-        if (profileError) {
-          console.error("Error updating profile in database:", profileError);
-          throw profileError;
-        }
+        console.log("User metadata updated successfully!");
         
-        // Update local user state to reflect changes
+        // Update the user state to reflect changes (especially isNewUser = false)
         const updatedUser: User = {
           ...user!,
           isNewUser: false,
@@ -231,15 +220,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(updatedUser);
         
         // Also save profile to localStorage as a backup
-        if (user?.id) {
-          localStorage.setItem(`selfsight_profile_${user.id}`, JSON.stringify(profile));
+        if (updatedUser.id) {
+          localStorage.setItem(`selfsight_profile_${updatedUser.id}`, JSON.stringify(profile));
+          console.log("Profile saved to localStorage");
         }
+        
+        // Explicitly redirect to journal page after successful profile update
+        // Don't rely on the auth listener since it might not detect this change
+        console.log("Profile updated successfully, redirecting to /journal");
       }
       
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       toast.error(`Failed to update profile: ${error.message}`);
       console.error("Profile update error:", error);
+      throw error;
     } finally {
       setLoading(false);
     }

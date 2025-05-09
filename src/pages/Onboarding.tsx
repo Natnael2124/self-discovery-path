@@ -22,12 +22,17 @@ const Onboarding = () => {
 
   // Check if user is authenticated and redirect if needed
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
+    console.log("Onboarding - Auth state:", { user, authLoading, isNewUser: user?.isNewUser });
+    
     // If user is logged in but is not a new user, redirect to journal
     if (!authLoading && user && !user.isNewUser) {
+      console.log("Onboarding redirecting to journal: not a new user");
       navigate("/journal");
+    } 
+    // If no user is logged in, redirect to login
+    else if (!authLoading && !user) {
+      console.log("Onboarding redirecting to login: no authenticated user");
+      navigate("/login");
     }
   }, [user, authLoading, navigate]);
 
@@ -49,6 +54,8 @@ const Onboarding = () => {
       localStorage.setItem(`selfsight_profile_${user.id}`, JSON.stringify(profile));
       
       toast.success("Profile updated successfully!");
+      
+      // Force navigation to journal after successful profile update
       navigate("/journal");
     } catch (error: any) {
       console.error("Error updating profile:", error);
