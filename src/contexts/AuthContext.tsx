@@ -105,34 +105,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Set isNewUser flag to true
         setUser(mapSupabaseUser(data.user, true));
         
-        try {
-          // Check if profile exists
-          const { data: existingProfiles, error: profileQueryError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", data.user.id);
-            
-          if (profileQueryError) {
-            console.error("Error checking for existing profile:", profileQueryError);
-          }
-            
-          if (!existingProfiles || existingProfiles.length === 0) {
-            // Create profile if it doesn't exist
-            const { error: profileError } = await supabase
-              .from("profiles")
-              .insert([{ 
-                id: data.user.id,
-                email: email,
-                name: name 
-              }]);
-              
-            if (profileError) {
-              console.error("Error creating profile:", profileError);
-            }
-          }
-        } catch (profileErr) {
-          console.error("Error checking/creating user profile:", profileErr);
-        }
+        // No more trying to create a profiles entry since the table doesn't exist
+        // Instead, save to localStorage as a backup
+        localStorage.setItem(`selfsight_user_${data.user.id}`, JSON.stringify({
+          id: data.user.id,
+          email: email,
+          name: name,
+          isNewUser: true
+        }));
       }
     } catch (error: any) {
       toast.error(`Signup failed: ${error.message}`);
