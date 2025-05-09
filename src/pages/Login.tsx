@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 const Login = () => {
-  const { login, loading, user } = useAuth();
+  const { login, loading, user, session } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,14 +18,16 @@ const Login = () => {
 
   // If user is already logged in, redirect to appropriate page
   useEffect(() => {
-    if (user) {
+    console.log("Login - Auth state:", { user, sessionExists: !!session });
+    
+    if (user && session) {
       if (user.isNewUser) {
         navigate("/onboarding");
       } else {
         navigate("/journal");
       }
     }
-  }, [user, navigate]);
+  }, [user, navigate, session]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,13 +43,12 @@ const Login = () => {
       // Don't navigate here - the auth listener will handle redirects
     } catch (err: any) {
       console.log("Login error in component:", err);
-      // Error is already handled in the login function with toast
       setError(err.message || "Failed to login. Please check your credentials.");
     }
   };
 
   // If already logged in, don't render the form
-  if (user) {
+  if (user && session) {
     return null;
   }
 

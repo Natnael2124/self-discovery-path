@@ -10,7 +10,7 @@ interface MainLayoutProps {
 }
 
 const MainLayout = ({ children, requireAuth = true }: MainLayoutProps) => {
-  const { user, loading } = useAuth();
+  const { user, loading, session } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,8 +20,8 @@ const MainLayout = ({ children, requireAuth = true }: MainLayoutProps) => {
     }
 
     // If authentication is required but user is not logged in
-    if (requireAuth && !user) {
-      console.log("MainLayout redirecting to login: no authenticated user");
+    if (requireAuth && (!user || !session)) {
+      console.log("MainLayout redirecting to login: no authenticated user or session");
       navigate("/login");
       return;
     }
@@ -37,11 +37,12 @@ const MainLayout = ({ children, requireAuth = true }: MainLayoutProps) => {
     console.log("MainLayout auth state:", { 
       loading, 
       requireAuth, 
-      isAuthenticated: !!user, 
+      isAuthenticated: !!user,
+      hasSession: !!session,
       isNewUser: user?.isNewUser,
       currentPath: window.location.pathname 
     });
-  }, [user, loading, navigate, requireAuth]);
+  }, [user, session, loading, navigate, requireAuth]);
 
   // Show loading state while checking auth
   if (loading) {
@@ -53,11 +54,11 @@ const MainLayout = ({ children, requireAuth = true }: MainLayoutProps) => {
   }
 
   // Show only children without sidebar for unauthenticated users
-  if (!user && requireAuth) {
+  if ((!user || !session) && requireAuth) {
     return null;
   }
 
-  if (!user) {
+  if (!user || !session) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }
 

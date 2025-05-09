@@ -9,7 +9,7 @@ import MainLayout from "@/components/layout/MainLayout";
 import { toast } from "@/components/ui/sonner";
 
 const Onboarding = () => {
-  const { user, updateUserProfile, loading: authLoading } = useAuth();
+  const { user, updateUserProfile, loading: authLoading, session } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,12 @@ const Onboarding = () => {
 
   // Check if user is authenticated and redirect if needed
   useEffect(() => {
-    console.log("Onboarding - Auth state:", { user, authLoading, isNewUser: user?.isNewUser });
+    console.log("Onboarding - Auth state:", { 
+      user, 
+      authLoading, 
+      isNewUser: user?.isNewUser,
+      hasSession: !!session 
+    });
     
     // If user is logged in but is not a new user, redirect to journal
     if (!authLoading && user && !user.isNewUser) {
@@ -34,7 +39,7 @@ const Onboarding = () => {
       console.log("Onboarding redirecting to login: no authenticated user");
       navigate("/login");
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, session]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,21 +47,30 @@ const Onboarding = () => {
     try {
       setLoading(true);
       
-      if (!user) {
+      if (!user || !session) {
+        console.error("Submit attempted without user or session", { user, sessionExists: !!session });
         toast.error("You need to be logged in to complete onboarding");
         navigate("/login");
         return;
       }
       
+      console.log("Updating profile with session:", { 
+        sessionExists: !!session,
+        userId: user.id
+      });
+      
       await updateUserProfile(profile);
       
-      // Also save profile to localStorage as a backup
+      // Save profile to localStorage as a backup
       localStorage.setItem(`selfsight_profile_${user.id}`, JSON.stringify(profile));
       
       toast.success("Profile updated successfully!");
       
       // Force navigation to journal after successful profile update
-      navigate("/journal");
+      console.log("Profile updated successfully, redirecting to /journal");
+      setTimeout(() => {
+        navigate("/journal");
+      }, 500);
     } catch (error: any) {
       console.error("Error updating profile:", error);
       toast.error(`Failed to update profile: ${error.message || "Unknown error"}`);
