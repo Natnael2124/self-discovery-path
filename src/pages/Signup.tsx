@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const Signup = () => {
   const { signup, loading, user } = useAuth();
@@ -15,6 +17,7 @@ const Signup = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   // If user is already logged in, redirect to home page
   if (user) {
@@ -25,6 +28,7 @@ const Signup = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
 
     if (!name || !email || !password) {
       setError("Please fill in all fields");
@@ -43,7 +47,8 @@ const Signup = () => {
 
     try {
       await signup(name, email, password);
-      // Do not navigate here - the auth state change will handle redirect
+      setSuccessMessage("Account created successfully! Please check your email for confirmation.");
+      // Do not navigate here - will be handled by auth state change or confirmation
     } catch (err: any) {
       console.error("Signup error:", err);
       setError(err.message || "Failed to create account. Please try again.");
@@ -65,6 +70,19 @@ const Signup = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              
+              {successMessage && (
+                <Alert>
+                  <AlertDescription>{successMessage}</AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
@@ -115,8 +133,6 @@ const Signup = () => {
                   disabled={loading}
                 />
               </div>
-
-              {error && <p className="text-sm text-destructive">{error}</p>}
 
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Creating account..." : "Sign up"}

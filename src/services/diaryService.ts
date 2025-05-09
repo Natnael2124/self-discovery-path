@@ -103,26 +103,45 @@ export const updateEntryInSupabase = async (
   if (error) throw error;
 };
 
-// Analyze an entry using Supabase Edge Function
+// Analyze an entry using mock AI instead of Gemini
 export const analyzeEntryWithAI = async (
   entryId: string, 
   title: string, 
   content: string
 ): Promise<any> => {
   try {
-    const { data, error } = await supabase.functions.invoke('analyze-journal', {
-      body: {
-        title,
-        content
+    // Return mock analysis data instead of calling the API
+    console.log("Using mock AI analysis instead of Gemini API");
+    
+    // Extract some keywords from content for more realistic mock analysis
+    const keywords = content.toLowerCase().split(/\s+/).filter(w => w.length > 5).slice(0, 3);
+    const emotions = ["reflective", "thoughtful", "curious"];
+    
+    if (keywords.includes("happy") || keywords.includes("joy") || title.toLowerCase().includes("happy")) {
+      emotions[0] = "happy";
+    } else if (keywords.includes("sad") || keywords.includes("upset") || title.toLowerCase().includes("sad")) {
+      emotions[0] = "sad";
+    } else if (keywords.includes("angry") || keywords.includes("frustrat") || title.toLowerCase().includes("angry")) {
+      emotions[0] = "angry";
+    }
+    
+    // Simple mock analysis based on length of content
+    const mockMood = content.length > 300 ? "contemplative" : "brief";
+    const mockStrength = content.length > 200 ? "self-awareness" : "conciseness";
+    
+    return {
+      mood: mockMood,
+      emotions: emotions,
+      strength: mockStrength,
+      weakness: "could provide more context",
+      insight: "Taking time to write down thoughts shows a commitment to self-reflection.",
+      patterns: {
+        positive: ["journaling", "reflection"],
+        areas_for_growth: ["detail", "regularity"]
       }
-    });
-    
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error("No analysis data returned");
-    
-    return data;
+    };
   } catch (error) {
-    console.error("Error analyzing entry:", error);
+    console.error("Error in mock analysis:", error);
     // Return fallback analysis with _fallback flag
     return {
       mood: "contemplative",
@@ -130,8 +149,7 @@ export const analyzeEntryWithAI = async (
       strength: "self-awareness",
       weakness: "uncertainty",
       insight: "Taking time to reflect shows a commitment to personal growth.",
-      _fallback: true,
-      _quotaExceeded: error.message?.includes("quota exceeded")
+      _fallback: true
     };
   }
 };

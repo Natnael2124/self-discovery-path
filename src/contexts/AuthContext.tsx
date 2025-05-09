@@ -80,16 +80,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Login error details:", error);
+        if (error.message === "Email not confirmed") {
+          toast.error("Please check your email to confirm your account before logging in.");
+        } else {
+          toast.error(`Login failed: ${error.message}`);
+        }
+        throw error;
+      }
       
       toast.success("Login successful!");
     } catch (error: any) {
-      toast.error(`Login failed: ${error.message}`);
       console.error("Login error:", error);
       throw error;
     } finally {
@@ -102,6 +109,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       
+      // Check if user already exists
+      const { data: existingUsers } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .limit(1);
+      
+      if (existingUsers && existingUsers.length > 0) {
+        toast.error("User with this email already exists.");
+        throw new Error("User with this email already exists.");
+      }
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -110,6 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             name,
             isNewUser: true,
           },
+          emailRedirectTo: window.location.origin,
         },
       });
 
@@ -117,10 +137,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // Check if the user was created successfully
       if (data.user) {
-        toast.success("Account created successfully!");
+        toast.success("Account created successfully! Check your email for confirmation.");
         
         // Set isNewUser flag to true
         setUser(mapSupabaseUser(data.user, true));
+        
+        // Also try to create a profile manually since sometimes the trigger may not work
+        try {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([
+              { 
+                id: data.user.id,
+                email: data.user.email,
+                name: name
+              },
+            ]);
+            
+          if (profileError) {
+            console.error("Error creating profile:", profileError);
+          }
+        } catch (profileErr) {
+          console.error("Error creating user profile:", profileErr);
+        }
       }
     } catch (error: any) {
       toast.error(`Signup failed: ${error.message}`);
@@ -166,6 +205,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
       
       if (data.user) {
+        // Also update the profile in our profiles table
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            name: profile.name || data.user.user_metadata?.name,
+            email: data.user.email,
+            // Add any other profile fields here
+          });
+          
+        if (profileError) {
+          console.error("Error updating profile in database:", profileError);
+          throw profileError;
+        }
+        
         // Update local user state to reflect changes
         const updatedUser: User = {
           ...user!,

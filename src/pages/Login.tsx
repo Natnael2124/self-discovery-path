@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const Login = () => {
   const { login, loading, user } = useAuth();
@@ -32,8 +34,10 @@ const Login = () => {
     try {
       await login(email, password);
       // Don't navigate here - the auth listener will handle redirects
-    } catch (err) {
-      setError("Failed to login. Please check your credentials.");
+    } catch (err: any) {
+      console.log("Login error in component:", err);
+      // Error is already handled in the login function with toast
+      setError(err.message || "Failed to login. Please check your credentials.");
     }
   };
 
@@ -52,6 +56,13 @@ const Login = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+            
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -82,8 +93,6 @@ const Login = () => {
                   disabled={loading}
                 />
               </div>
-
-              {error && <p className="text-sm text-destructive">{error}</p>}
 
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Logging in..." : "Login"}
