@@ -12,6 +12,8 @@ import { InsightProvider } from "./contexts/InsightContext";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Onboarding from "./pages/Onboarding";
 import Profile from "./pages/Profile";
 import JournalList from "./pages/Journal/JournalList";
@@ -36,6 +38,8 @@ const App = () => (
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/journal" element={<JournalList />} />

@@ -77,6 +77,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Password reset function
+  const resetPassword = async (email: string) => {
+    try {
+      setLoading(true);
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + "/reset-password",
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Password reset email sent!");
+    } catch (error: any) {
+      console.error("Password reset error:", error);
+      toast.error(`Failed to send reset email: ${error.message}`);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Signup function using Supabase
   const signup = async (name: string, email: string, password: string) => {
     try {
@@ -100,7 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Check if the user was created successfully
       if (data.user) {
         console.log("User created successfully:", data.user.id);
-        toast.success("Account created successfully! Please confirm your email if required.");
+        toast.success("Account created successfully! Please check your email for the confirmation link.");
         
         // Set isNewUser flag to true
         setUser(mapSupabaseUser(data.user, true));
@@ -194,7 +215,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login, 
       signup, 
       logout, 
-      updateUserProfile 
+      updateUserProfile,
+      resetPassword 
     }}>
       {children}
     </AuthContext.Provider>
