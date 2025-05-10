@@ -110,34 +110,132 @@ export const analyzeEntryWithAI = async (
   content: string
 ): Promise<any> => {
   try {
-    // Return mock analysis data instead of calling the API
-    console.log("Using mock AI analysis instead of Gemini API");
+    console.log("Starting mock AI analysis for entry:", entryId);
     
-    // Extract some keywords from content for more realistic mock analysis
-    const keywords = content.toLowerCase().split(/\s+/).filter(w => w.length > 5).slice(0, 3);
-    const emotions = ["reflective", "thoughtful", "curious"];
+    // Generate more dynamic analysis based on content
+    const words = content.toLowerCase().split(/\s+/);
+    const contentLength = content.length;
     
-    if (keywords.includes("happy") || keywords.includes("joy") || title.toLowerCase().includes("happy")) {
-      emotions[0] = "happy";
-    } else if (keywords.includes("sad") || keywords.includes("upset") || title.toLowerCase().includes("sad")) {
-      emotions[0] = "sad";
-    } else if (keywords.includes("angry") || keywords.includes("frustrat") || title.toLowerCase().includes("angry")) {
-      emotions[0] = "angry";
+    // Extract keywords and emotional indicators
+    const emotionalKeywords = {
+      happy: ["happy", "joy", "excited", "glad", "wonderful", "great", "fantastic", "pleased"],
+      sad: ["sad", "unhappy", "depressed", "down", "upset", "disappointing", "somber", "gloomy"],
+      angry: ["angry", "frustrated", "annoyed", "mad", "irritated", "furious", "rage"],
+      anxious: ["anxious", "worried", "nervous", "stressed", "overwhelmed", "concerned", "tense"],
+      calm: ["calm", "peaceful", "relaxed", "tranquil", "serene", "content", "balanced"]
+    };
+    
+    // Detect primary emotion
+    let primaryMood = "contemplative"; // Default
+    let emotionCounts = {
+      happy: 0,
+      sad: 0,
+      angry: 0,
+      anxious: 0,
+      calm: 0
+    };
+    
+    // Count emotional words in content
+    words.forEach(word => {
+      for (const [emotion, keywords] of Object.entries(emotionalKeywords)) {
+        if (keywords.some(keyword => word.includes(keyword))) {
+          emotionCounts[emotion as keyof typeof emotionCounts]++;
+        }
+      }
+    });
+    
+    // Find the primary emotion
+    let highestCount = 0;
+    for (const [emotion, count] of Object.entries(emotionCounts)) {
+      if (count > highestCount) {
+        highestCount = count;
+        primaryMood = emotion;
+      }
     }
     
-    // Simple mock analysis based on length of content
-    const mockMood = content.length > 300 ? "contemplative" : "brief";
-    const mockStrength = content.length > 200 ? "self-awareness" : "conciseness";
+    // If no strong emotion detected, use title sentiment
+    if (highestCount === 0) {
+      for (const [emotion, keywords] of Object.entries(emotionalKeywords)) {
+        if (keywords.some(keyword => title.toLowerCase().includes(keyword))) {
+          primaryMood = emotion;
+          break;
+        }
+      }
+    }
     
+    // Generate emotions array based on detected mood
+    let emotions: string[] = [];
+    switch(primaryMood) {
+      case "happy":
+        emotions = ["joyful", "optimistic", "grateful"];
+        break;
+      case "sad":
+        emotions = ["melancholy", "reflective", "sensitive"];
+        break;
+      case "angry":
+        emotions = ["frustrated", "irritated", "passionate"];
+        break;
+      case "anxious":
+        emotions = ["worried", "cautious", "alert"];
+        break;
+      case "calm":
+        emotions = ["peaceful", "mindful", "balanced"];
+        break;
+      default:
+        emotions = ["thoughtful", "contemplative", "curious"];
+    }
+    
+    // Analyze writing style for strengths and weaknesses
+    let strength = "self-awareness";
+    let weakness = "clarity";
+    
+    if (contentLength > 500) {
+      strength = "expressiveness";
+    } else if (contentLength < 100) {
+      strength = "conciseness";
+      weakness = "detail";
+    }
+    
+    // Check for reflective language
+    const reflectiveWords = ["think", "feel", "realize", "understand", "learn", "reflect", "consider"];
+    if (reflectiveWords.some(word => words.includes(word))) {
+      strength = "self-reflection";
+    }
+    
+    // Check for question marks - indicates curiosity or uncertainty
+    if (content.includes("?")) {
+      if (content.split("?").length > 3) {
+        weakness = "certainty";
+        strength = "curiosity";
+      }
+    }
+    
+    // Generate insight based on detected patterns
+    let insight = "Taking time to write down your thoughts shows a commitment to self-reflection.";
+    
+    if (primaryMood === "anxious") {
+      insight = "Your writing reveals concerns that might benefit from being addressed directly.";
+    } else if (primaryMood === "happy") {
+      insight = "You're expressing positive emotions that can be channeled into productive activities.";
+    } else if (primaryMood === "sad") {
+      insight = "Processing these feelings through writing is a healthy step toward understanding them better.";
+    } else if (contentLength > 500) {
+      insight = "Your detailed expression suggests deep engagement with your thoughts and experiences.";
+    }
+    
+    console.log("Analysis completed for entry:", entryId);
+    console.log("Detected mood:", primaryMood);
+    
+    // Return the analysis data
     return {
-      mood: mockMood,
+      mood: primaryMood,
       emotions: emotions,
-      strength: mockStrength,
-      weakness: "could provide more context",
-      insight: "Taking time to write down thoughts shows a commitment to self-reflection.",
+      strength: strength,
+      weakness: weakness,
+      insight: insight,
       patterns: {
-        positive: ["journaling", "reflection"],
-        areas_for_growth: ["detail", "regularity"]
+        positive: [strength, "journaling"],
+        areas_for_growth: [weakness]
       }
     };
   } catch (error) {
