@@ -109,141 +109,34 @@ export const analyzeEntryWithAI = async (
   title: string, 
   content: string
 ): Promise<any> => {
+  console.log("Starting entry analysis for entry:", entryId);
+  
   try {
-    console.log("Starting mock AI analysis for entry:", entryId);
-    
-    // Generate more dynamic analysis based on content
-    const words = content.toLowerCase().split(/\s+/);
-    const contentLength = content.length;
-    
-    // Extract keywords and emotional indicators
-    const emotionalKeywords = {
-      happy: ["happy", "joy", "excited", "glad", "wonderful", "great", "fantastic", "pleased"],
-      sad: ["sad", "unhappy", "depressed", "down", "upset", "disappointing", "somber", "gloomy"],
-      angry: ["angry", "frustrated", "annoyed", "mad", "irritated", "furious", "rage"],
-      anxious: ["anxious", "worried", "nervous", "stressed", "overwhelmed", "concerned", "tense"],
-      calm: ["calm", "peaceful", "relaxed", "tranquil", "serene", "content", "balanced"]
-    };
-    
-    // Detect primary emotion
-    let primaryMood = "contemplative"; // Default
-    let emotionCounts = {
-      happy: 0,
-      sad: 0,
-      angry: 0,
-      anxious: 0,
-      calm: 0
-    };
-    
-    // Count emotional words in content
-    words.forEach(word => {
-      for (const [emotion, keywords] of Object.entries(emotionalKeywords)) {
-        if (keywords.some(keyword => word.includes(keyword))) {
-          emotionCounts[emotion as keyof typeof emotionCounts]++;
-        }
+    // Try to use the Supabase Edge Function first
+    try {
+      console.log("Attempting to use Supabase Edge Function for analysis");
+      const { data, error } = await supabase.functions.invoke('analyze-journal', {
+        body: { title, content }
+      });
+      
+      if (error) {
+        console.error("Error calling Supabase Edge Function:", error);
+        throw error;
       }
-    });
-    
-    // Find the primary emotion
-    let highestCount = 0;
-    for (const [emotion, count] of Object.entries(emotionCounts)) {
-      if (count > highestCount) {
-        highestCount = count;
-        primaryMood = emotion;
-      }
+      
+      console.log("Analysis from Edge Function successful:", data);
+      return data;
+    } catch (apiError) {
+      console.error("Edge Function failed, falling back to mock analysis:", apiError);
+      // If API call fails, fall back to the mock analysis
+      return generateMockAnalysis(title, content);
     }
-    
-    // If no strong emotion detected, use title sentiment
-    if (highestCount === 0) {
-      for (const [emotion, keywords] of Object.entries(emotionalKeywords)) {
-        if (keywords.some(keyword => title.toLowerCase().includes(keyword))) {
-          primaryMood = emotion;
-          break;
-        }
-      }
-    }
-    
-    // Generate emotions array based on detected mood
-    let emotions: string[] = [];
-    switch(primaryMood) {
-      case "happy":
-        emotions = ["joyful", "optimistic", "grateful"];
-        break;
-      case "sad":
-        emotions = ["melancholy", "reflective", "sensitive"];
-        break;
-      case "angry":
-        emotions = ["frustrated", "irritated", "passionate"];
-        break;
-      case "anxious":
-        emotions = ["worried", "cautious", "alert"];
-        break;
-      case "calm":
-        emotions = ["peaceful", "mindful", "balanced"];
-        break;
-      default:
-        emotions = ["thoughtful", "contemplative", "curious"];
-    }
-    
-    // Analyze writing style for strengths and weaknesses
-    let strength = "self-awareness";
-    let weakness = "clarity";
-    
-    if (contentLength > 500) {
-      strength = "expressiveness";
-    } else if (contentLength < 100) {
-      strength = "conciseness";
-      weakness = "detail";
-    }
-    
-    // Check for reflective language
-    const reflectiveWords = ["think", "feel", "realize", "understand", "learn", "reflect", "consider"];
-    if (reflectiveWords.some(word => words.includes(word))) {
-      strength = "self-reflection";
-    }
-    
-    // Check for question marks - indicates curiosity or uncertainty
-    if (content.includes("?")) {
-      if (content.split("?").length > 3) {
-        weakness = "certainty";
-        strength = "curiosity";
-      }
-    }
-    
-    // Generate insight based on detected patterns
-    let insight = "Taking time to write down your thoughts shows a commitment to self-reflection.";
-    
-    if (primaryMood === "anxious") {
-      insight = "Your writing reveals concerns that might benefit from being addressed directly.";
-    } else if (primaryMood === "happy") {
-      insight = "You're expressing positive emotions that can be channeled into productive activities.";
-    } else if (primaryMood === "sad") {
-      insight = "Processing these feelings through writing is a healthy step toward understanding them better.";
-    } else if (contentLength > 500) {
-      insight = "Your detailed expression suggests deep engagement with your thoughts and experiences.";
-    }
-    
-    console.log("Analysis completed for entry:", entryId);
-    console.log("Detected mood:", primaryMood);
-    
-    // Return the analysis data
-    return {
-      mood: primaryMood,
-      emotions: emotions,
-      strength: strength,
-      weakness: weakness,
-      insight: insight,
-      patterns: {
-        positive: [strength, "journaling"],
-        areas_for_growth: [weakness]
-      }
-    };
   } catch (error) {
-    console.error("Error in mock analysis:", error);
-    // Return fallback analysis with _fallback flag
+    console.error("Error in analyzeEntryWithAI:", error);
+    // Generate a fallback analysis in case of any error
     return {
       mood: "contemplative",
-      emotions: ["thoughtful", "reflective"],
+      emotions: ["thoughtful", "reflective", "curious"],
       strength: "self-awareness",
       weakness: "uncertainty",
       insight: "Taking time to reflect shows a commitment to personal growth.",
@@ -252,24 +145,170 @@ export const analyzeEntryWithAI = async (
   }
 };
 
+// Generate mock analysis based on content
+const generateMockAnalysis = (title: string, content: string) => {
+  console.log("Generating mock analysis");
+  
+  // Extract keywords and emotional indicators
+  const words = content.toLowerCase().split(/\s+/);
+  const titleWords = title.toLowerCase().split(/\s+/);
+  const contentLength = content.length;
+  
+  // Emotional keywords dictionary
+  const emotionalKeywords = {
+    happy: ["happy", "joy", "excited", "glad", "wonderful", "great", "fantastic", "pleased", "smile", "laugh"],
+    sad: ["sad", "unhappy", "depressed", "down", "upset", "disappointing", "somber", "gloomy", "cry", "hurt"],
+    angry: ["angry", "frustrated", "annoyed", "mad", "irritated", "furious", "rage", "upset", "hostile"],
+    anxious: ["anxious", "worried", "nervous", "stressed", "overwhelmed", "concerned", "tense", "fear", "panic"],
+    calm: ["calm", "peaceful", "relaxed", "tranquil", "serene", "content", "balanced", "quiet", "still"]
+  };
+  
+  // Count emotional words in content
+  let emotionCounts = {
+    happy: 0,
+    sad: 0,
+    angry: 0,
+    anxious: 0, 
+    calm: 0
+  };
+  
+  // Analyze both title and content
+  [...words, ...titleWords].forEach(word => {
+    for (const [emotion, keywords] of Object.entries(emotionalKeywords)) {
+      if (keywords.some(keyword => word.includes(keyword))) {
+        emotionCounts[emotion as keyof typeof emotionCounts]++;
+      }
+    }
+  });
+  
+  // Find the primary emotion
+  let primaryMood = "contemplative"; // Default
+  let highestCount = 0;
+  for (const [emotion, count] of Object.entries(emotionCounts)) {
+    if (count > highestCount) {
+      highestCount = count;
+      primaryMood = emotion;
+    }
+  }
+  
+  // Content sentiment analysis - check for question marks, exclamations
+  if (content.split('?').length > 3) {
+    primaryMood = "curious";
+  } else if (content.split('!').length > 3) {
+    primaryMood = emotionCounts.happy > 0 ? "excited" : "intense";
+  }
+  
+  // Generate appropriate emotions array based on detected mood
+  let emotions: string[] = [];
+  switch(primaryMood) {
+    case "happy":
+      emotions = ["joyful", "optimistic", "grateful"];
+      break;
+    case "sad":
+      emotions = ["melancholy", "reflective", "sensitive"];
+      break;
+    case "angry":
+      emotions = ["frustrated", "irritated", "passionate"];
+      break;
+    case "anxious":
+      emotions = ["worried", "cautious", "alert"];
+      break;
+    case "calm":
+      emotions = ["peaceful", "mindful", "balanced"];
+      break;
+    case "curious":
+      emotions = ["inquisitive", "thoughtful", "interested"];
+      break;
+    case "excited":
+      emotions = ["enthusiastic", "eager", "animated"];
+      break;
+    case "intense":
+      emotions = ["focused", "determined", "serious"];
+      break;
+    default:
+      emotions = ["thoughtful", "contemplative", "reflective"];
+  }
+  
+  // Analyze writing style and content for strengths and weaknesses
+  let strength = "self-awareness";
+  let weakness = "clarity";
+  
+  // Base on content length
+  if (contentLength > 500) {
+    strength = "expressiveness";
+  } else if (contentLength < 100) {
+    strength = "conciseness";
+    weakness = "detail";
+  }
+  
+  // Check for reflective language
+  const reflectiveWords = ["think", "feel", "realize", "understand", "learn", "reflect", "consider"];
+  if (reflectiveWords.some(word => words.includes(word))) {
+    strength = "self-reflection";
+  }
+  
+  // Check for uncertainty language
+  const uncertaintyWords = ["maybe", "perhaps", "might", "could", "possibly", "unsure", "wonder"];
+  if (uncertaintyWords.some(word => words.includes(word))) {
+    weakness = "certainty";
+  }
+  
+  // Generate personalized insight based on detected patterns
+  let insight = "Taking time to write down your thoughts shows a commitment to self-reflection.";
+  
+  if (primaryMood === "anxious") {
+    insight = "Your writing reveals concerns that might benefit from being addressed directly.";
+  } else if (primaryMood === "happy") {
+    insight = "Your positive outlook can be channeled into productive pursuits and shared with others.";
+  } else if (primaryMood === "sad") {
+    insight = "Processing these feelings through writing is a healthy step toward understanding them better.";
+  } else if (contentLength > 500) {
+    insight = "Your detailed expression suggests deep engagement with your thoughts and experiences.";
+  } else if (content.includes("?")) {
+    insight = "Your questioning nature shows a desire to understand things more deeply.";
+  }
+  
+  console.log("Mock analysis generated with mood:", primaryMood);
+  
+  // Return the analysis data
+  return {
+    mood: primaryMood,
+    emotions: emotions,
+    strength: strength,
+    weakness: weakness,
+    insight: insight
+  };
+};
+
 // Update entry with analysis results
 export const updateEntryWithAnalysis = async (
   entryId: string,
   analysisData: any
 ): Promise<void> => {
-  const { error } = await supabase
-    .from('journal_entries')
-    .update({
-      mood: analysisData.mood,
-      emotions: analysisData.emotions,
-      strength: analysisData.strength,
-      weakness: analysisData.weakness,
-      insight: analysisData.insight,
-      analysis: analysisData,
-      _fallback: analysisData._fallback || false,
-      _quotaExceeded: analysisData._quotaExceeded || false
-    })
-    .eq('id', entryId);
+  try {
+    const { error } = await supabase
+      .from('journal_entries')
+      .update({
+        mood: analysisData.mood,
+        emotions: analysisData.emotions,
+        strength: analysisData.strength,
+        weakness: analysisData.weakness,
+        insight: analysisData.insight,
+        analysis: analysisData,
+        _fallback: analysisData._fallback || false,
+        _quotaExceeded: analysisData._quotaExceeded || false
+      })
+      .eq('id', entryId);
 
-  if (error) throw error;
+    if (error) throw error;
+    
+    console.log("Entry updated with analysis results:", {
+      entryId,
+      mood: analysisData.mood,
+      emotions: analysisData.emotions
+    });
+  } catch (error) {
+    console.error("Error updating entry with analysis:", error);
+    throw error;
+  }
 };
