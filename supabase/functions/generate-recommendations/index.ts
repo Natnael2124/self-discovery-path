@@ -15,10 +15,10 @@ serve(async (req) => {
 
   try {
     const { entries } = await req.json();
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    const GROQ_API_KEY = Deno.env.get('Groq_api_key');
     
-    if (!GEMINI_API_KEY) {
-      throw new Error('Missing Gemini API key');
+    if (!GROQ_API_KEY) {
+      throw new Error('Missing Groq API key');
     }
 
     if (!entries || !Array.isArray(entries) || entries.length === 0) {
@@ -40,48 +40,47 @@ serve(async (req) => {
     });
 
     try {
-      // Call Gemini API for personalized recommendations
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
+      // Call Groq API for personalized recommendations
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [
+          model: 'llama-3.1-70b-versatile',
+          messages: [
             {
-              parts: [
+              role: 'system',
+              content: 'You are an expert in personal development and wellness resources. Generate personalized recommendations based on journal analysis.'
+            },
+            {
+              role: 'user',
+              content: `Based on these journal entry summaries:
+              ${JSON.stringify(entriesSummary, null, 2)}
+              
+              Generate 4 personalized recommendations for resources that would be helpful for the journal writer.
+              Include a mix of different resource types (youtube videos, books, articles, podcasts).
+              
+              Format the response as a JSON array with this structure:
+              [
                 {
-                  text: `Based on these journal entry summaries:
-                  ${JSON.stringify(entriesSummary, null, 2)}
-                  
-                  Generate 4 personalized recommendations for resources that would be helpful for the journal writer.
-                  Include a mix of different resource types (youtube videos, books, articles, podcasts).
-                  
-                  Format the response as a JSON array with this structure:
-                  [
-                    {
-                      "id": "unique-string",
-                      "type": "youtube|podcast|article|book",
-                      "title": "string",
-                      "description": "string",
-                      "url": "string (for online resources)",
-                      "author": "string (if applicable)"
-                    },
-                    ...
-                  ]
-                  
-                  Make sure each recommendation is specific, relevant to the journal content themes, and helpful for personal growth.
-                  Only respond with the JSON array and nothing else.`
-                }
+                  "id": "unique-string",
+                  "type": "youtube|podcast|article|book",
+                  "title": "string",
+                  "description": "string",
+                  "url": "string (for online resources)",
+                  "author": "string (if applicable)"
+                },
+                ...
               ]
+              
+              Make sure each recommendation is specific, relevant to the journal content themes, and helpful for personal growth.
+              Only respond with the JSON array and nothing else.`
             }
           ],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 32,
-            topP: 1,
-            maxOutputTokens: 1024,
-          }
+          temperature: 0.7,
+          max_tokens: 1024,
         })
       });
 
@@ -89,7 +88,7 @@ serve(async (req) => {
       
       // Check if there's an error in the API response
       if (data.error) {
-        console.error('Error from Gemini API:', data.error);
+        console.error('Error from Groq API:', data.error);
         
         if (data.error.code === 429) {
           // Return fallback recommendations when quota is exceeded
@@ -129,16 +128,16 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         } else {
-          throw new Error(data.error.message || 'Error calling Gemini API');
+          throw new Error(data.error.message || 'Error calling Groq API');
         }
       }
       
-      if (!data.candidates || data.candidates.length === 0) {
-        console.error('Error from Gemini API:', data);
-        throw new Error('Failed to get proper response from Gemini API');
+      if (!data.choices || data.choices.length === 0) {
+        console.error('Error from Groq API:', data);
+        throw new Error('Failed to get proper response from Groq API');
       }
 
-      let recommendationsText = data.candidates[0].content.parts[0].text;
+      let recommendationsText = data.choices[0].message.content;
       
       // Clean up the response to ensure it's valid JSON
       recommendationsText = recommendationsText.replace(/```json|```/g, '').trim();
@@ -156,11 +155,11 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       } catch (jsonError) {
-        console.error('Error parsing Gemini response as JSON:', jsonError, recommendationsText);
-        throw new Error('Invalid JSON response from Gemini API');
+        console.error('Error parsing Groq response as JSON:', jsonError, recommendationsText);
+        throw new Error('Invalid JSON response from Groq API');
       }
     } catch (apiError) {
-      console.error('Error calling Gemini API:', apiError);
+      console.error('Error calling Groq API:', apiError);
       
       // Provide fallback recommendations when API calls fail
       return new Response(JSON.stringify([

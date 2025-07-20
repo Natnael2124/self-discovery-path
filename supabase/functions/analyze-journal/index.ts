@@ -15,10 +15,10 @@ serve(async (req) => {
 
   try {
     const { title, content } = await req.json();
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    const GROQ_API_KEY = Deno.env.get('Groq_api_key');
     
-    if (!GEMINI_API_KEY) {
-      throw new Error('Missing Gemini API key');
+    if (!GROQ_API_KEY) {
+      throw new Error('Missing Groq API key');
     }
 
     if (!title || !content) {
@@ -28,48 +28,47 @@ serve(async (req) => {
     console.log('Analyzing journal entry:', { title });
 
     try {
-      // Call Gemini API for journal entry analysis
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
+      // Call Groq API for journal entry analysis
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [
+          model: 'llama-3.1-70b-versatile',
+          messages: [
             {
-              parts: [
-                {
-                  text: `Analyze the following journal entry. 
-                  Title: "${title}"
-                  Content: "${content}"
-                  
-                  Provide a detailed analysis with the following components:
-                  1. The overall mood of the writer (single word or short phrase)
-                  2. Three key emotions expressed (as a list of single words)
-                  3. One notable strength demonstrated in the entry (single word or short phrase)
-                  4. One area for growth or weakness (single word or short phrase)
-                  5. A brief insight or pattern (1-2 sentences)
-                  
-                  Format the response as a JSON object with this structure:
-                  {
-                    "mood": "string",
-                    "emotions": ["string", "string", "string"],
-                    "strength": "string",
-                    "weakness": "string",
-                    "insight": "string"
-                  }
-                  
-                  Only respond with the JSON object and nothing else.`
-                }
-              ]
+              role: 'system',
+              content: 'You are an expert journal analyst. Analyze journal entries and provide structured psychological insights.'
+            },
+            {
+              role: 'user',
+              content: `Analyze the following journal entry. 
+              Title: "${title}"
+              Content: "${content}"
+              
+              Provide a detailed analysis with the following components:
+              1. The overall mood of the writer (single word or short phrase)
+              2. Three key emotions expressed (as a list of single words)
+              3. One notable strength demonstrated in the entry (single word or short phrase)
+              4. One area for growth or weakness (single word or short phrase)
+              5. A brief insight or pattern (1-2 sentences)
+              
+              Format the response as a JSON object with this structure:
+              {
+                "mood": "string",
+                "emotions": ["string", "string", "string"],
+                "strength": "string",
+                "weakness": "string",
+                "insight": "string"
+              }
+              
+              Only respond with the JSON object and nothing else.`
             }
           ],
-          generationConfig: {
-            temperature: 0.4,
-            topK: 32,
-            topP: 1,
-            maxOutputTokens: 1024,
-          }
+          temperature: 0.4,
+          max_tokens: 1024,
         })
       });
 
@@ -77,7 +76,7 @@ serve(async (req) => {
       
       // Check if there's an error in the API response
       if (data.error) {
-        console.error('Error from Gemini API:', data.error);
+        console.error('Error from Groq API:', data.error);
         
         if (data.error.code === 429) {
           // Return a fallback analysis with a quota exceeded message
@@ -93,16 +92,16 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         } else {
-          throw new Error(data.error.message || 'Error calling Gemini API');
+          throw new Error(data.error.message || 'Error calling Groq API');
         }
       }
       
-      if (!data.candidates || data.candidates.length === 0) {
-        console.error('Error from Gemini API:', data);
-        throw new Error('Failed to get proper response from Gemini API');
+      if (!data.choices || data.choices.length === 0) {
+        console.error('Error from Groq API:', data);
+        throw new Error('Failed to get proper response from Groq API');
       }
 
-      let analysisText = data.candidates[0].content.parts[0].text;
+      let analysisText = data.choices[0].message.content;
       
       // Clean up the response to ensure it's valid JSON
       analysisText = analysisText.replace(/```json|```/g, '').trim();
@@ -127,11 +126,11 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       } catch (jsonError) {
-        console.error('Error parsing Gemini response as JSON:', jsonError, analysisText);
-        throw new Error('Invalid JSON response from Gemini API');
+        console.error('Error parsing Groq response as JSON:', jsonError, analysisText);
+        throw new Error('Invalid JSON response from Groq API');
       }
     } catch (apiError) {
-      console.error('Error calling Gemini API:', apiError);
+      console.error('Error calling Groq API:', apiError);
       
       // Provide a fallback analysis when API calls fail
       return new Response(JSON.stringify({
