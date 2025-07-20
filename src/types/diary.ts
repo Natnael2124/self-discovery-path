@@ -12,8 +12,6 @@ export interface DiaryEntry {
   weakness?: string;
   insight?: string;
   analysis?: any;
-  _fallback?: boolean;
-  _quotaExceeded?: boolean;
 }
 
 export interface DiaryContextType {

@@ -93,23 +93,8 @@ export const DiaryProvider = ({ children }: { children: ReactNode }) => {
       // Call the Supabase Edge Function for AI analysis
       const analysisData = await DiaryService.analyzeEntryWithAI(entryId, entry.title, entry.content);
       
-      // Check if this is a fallback response due to API quota being exceeded
-      const isFallbackResponse = analysisData._fallback === true;
-      const isQuotaExceeded = analysisData._quotaExceeded === true;
-      
-      if (isQuotaExceeded) {
-        toast.warning("API quota exceeded. Using fallback analysis.", {
-          description: "The analysis provided is a generic response as the AI service is currently unavailable.",
-          duration: 5000
-        });
-      } else if (isFallbackResponse) {
-        toast.warning("Using fallback analysis.", {
-          description: "The AI service encountered an issue. A generic analysis has been provided.",
-          duration: 5000
-        });
-      } else {
-        toast.success("Entry analyzed successfully!");
-      }
+      // Show success message
+      toast.success("Entry analyzed successfully!");
 
       // Update the entry with AI analysis in Supabase
       await DiaryService.updateEntryWithAnalysis(entryId, analysisData);

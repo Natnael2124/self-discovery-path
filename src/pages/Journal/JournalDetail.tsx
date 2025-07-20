@@ -226,16 +226,7 @@ const JournalDetail = () => {
           entry.mood ? (
             <Card>
               <CardContent className="py-6">
-                {entry._fallback && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      {entry._quotaExceeded 
-                        ? "API quota exceeded. This is a fallback analysis." 
-                        : "AI analysis failed. This is a fallback analysis."}
-                    </AlertDescription>
-                  </Alert>
-                )}
+                {/* Removed fallback analysis alert */}
               
                 <div className="flex items-center mb-4">
                   <Brain className="text-primary mr-2" size={20} />

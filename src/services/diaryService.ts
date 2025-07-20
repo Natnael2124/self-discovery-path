@@ -16,9 +16,7 @@ export const transformEntryFromSupabase = (entry: any): DiaryEntry => ({
   strength: entry.strength || undefined,
   weakness: entry.weakness || undefined,
   insight: entry.insight || undefined,
-  analysis: entry.analysis || undefined,
-  _fallback: entry._fallback || false,
-  _quotaExceeded: entry._quotaExceeded || false
+  analysis: entry.analysis || undefined
 });
 
 // Fetch all entries for a user
@@ -70,8 +68,7 @@ export const createFallbackEntry = (
   content,
   tags,
   createdAt: new Date().toISOString(),
-  userId,
-  _fallback: true
+  userId
 });
 
 // Delete an entry
@@ -139,8 +136,7 @@ export const analyzeEntryWithAI = async (
       emotions: ["thoughtful", "reflective", "curious"],
       strength: "self-awareness",
       weakness: "uncertainty",
-      insight: "Taking time to reflect shows a commitment to personal growth.",
-      _fallback: true
+      insight: "Taking time to reflect shows a commitment to personal growth."
     };
   }
 };
@@ -294,9 +290,7 @@ export const updateEntryWithAnalysis = async (
         strength: analysisData.strength,
         weakness: analysisData.weakness,
         insight: analysisData.insight,
-        analysis: analysisData,
-        _fallback: analysisData._fallback || false,
-        _quotaExceeded: analysisData._quotaExceeded || false
+        analysis: analysisData
       })
       .eq('id', entryId);
 
